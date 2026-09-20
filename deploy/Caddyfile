@@ -1,0 +1,25 @@
+# Caddy terminates HTTPS (certificates are requested and renewed automatically)
+# and forwards everything to nginx inside the private network.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The app's raw Prometheus endpoint is for the private scraper only.
+	@internal path /metrics
+	respond @internal 404
+
+	# Optional: password-protect the dashboard and its Prometheus window.
+	#   1) docker run --rm caddy:2-alpine caddy hash-password --plaintext 'a-password'
+	#   2) paste the printed hash below, uncomment, and run: docker compose -f docker-compose.prod.yml restart caddy
+	# @private path /dashboard* /prom/*
+	# basicauth @private {
+	# 	demo PASTE_HASH_HERE
+	# }
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	reverse_proxy nginx:80
+}

@@ -1,0 +1,71 @@
+# Two RateGuard instances behind nginx, sharing one Redis (token buckets)
+# and one PostgreSQL (policies). Ports are published to localhost so that
+# `go test` and the load tester can run from your machine.
+x-rateguard: &rateguard
+  build: .
+  depends_on:
+    redis:    { condition: service_healthy }
+    postgres: { condition: service_healthy }
+  environment: &rateguard-env
+    REDIS_ADDR: redis:6379
+    DATABASE_URL: postgres://rateguard:rateguard@postgres:5432/rateguard?sslmode=disable
+    ADMIN_TOKEN: dev-admin-token
+    DEFAULT_CAPACITY: "100"
+    DEFAULT_REFILL_PER_SEC: "50"
+    FAIL_OPEN: "false"
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rateguard
+      POSTGRES_PASSWORD: rateguard
+      POSTGRES_DB: rateguard
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rateguard -d rateguard"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  rateguard-1:
+    <<: *rateguard
+    environment:
+      <<: *rateguard-env
+      INSTANCE_ID: rateguard-1
+    ports: ["8081:8080"]
+
+  rateguard-2:
+    <<: *rateguard
+    environment:
+      <<: *rateguard-env
+      INSTANCE_ID: rateguard-2
+    ports: ["8082:8080"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on: [rateguard-1, rateguard-2, prometheus]
+    ports: ["8080:80"]
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/dashboard:/usr/share/nginx/html/dashboard:ro
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    depends_on: [rateguard-1, rateguard-2]
+    ports: ["9090:9090"]
+    volumes: ["./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+
+volumes:
+  pgdata:

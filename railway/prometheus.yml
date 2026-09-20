@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 5s
+
+# Railway gives every replica of the "rateguard" service an address behind one
+# private DNS name. Prometheus looks that name up and scrapes every replica.
+scrape_configs:
+  - job_name: rateguard
+    dns_sd_configs:
+      - names: ["rateguard.railway.internal"]
+        type: A
+        port: 8080
+        refresh_interval: 10s

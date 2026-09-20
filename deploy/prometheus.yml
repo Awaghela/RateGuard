@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+
+# Scrape each instance directly (not via nginx) so every instance's series is kept.
+scrape_configs:
+  - job_name: rateguard
+    static_configs:
+      - targets: ["rateguard-1:8080", "rateguard-2:8080"]

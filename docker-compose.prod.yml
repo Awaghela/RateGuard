@@ -1,0 +1,112 @@
+# Production stack. Only Caddy (HTTPS) is exposed to the internet; Redis, Postgres,
+# the app servers, nginx and Prometheus live on a private Docker network.
+#
+#   cp .env.example .env    # then fill it in
+#   docker compose -f docker-compose.prod.yml up -d --build
+name: rateguard
+
+x-app: &app
+  build: .
+  restart: unless-stopped
+  depends_on:
+    redis:    { condition: service_healthy }
+    postgres: { condition: service_healthy }
+  mem_limit: 256m
+  logging: &logging
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  environment: &app-env
+    REDIS_ADDR: redis:6379
+    # POSTGRES_PASSWORD must be URL-safe: generate it with `openssl rand -hex 24`.
+    DATABASE_URL: postgres://rateguard:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/rateguard?sslmode=disable
+    ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+    DEFAULT_CAPACITY: ${DEFAULT_CAPACITY:-100}
+    DEFAULT_REFILL_PER_SEC: ${DEFAULT_REFILL_PER_SEC:-50}
+    FAIL_OPEN: ${FAIL_OPEN:-false}
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Buckets are disposable: after a restart every client simply gets a full bucket.
+    # All keys carry a TTL, so if memory ever fills, evict the ones about to expire.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-ttl"]
+    mem_limit: 192m
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rateguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: rateguard
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    mem_limit: 256m
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rateguard -d rateguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rateguard-1:
+    <<: *app
+    environment:
+      <<: *app-env
+      INSTANCE_ID: rateguard-1
+
+  rateguard-2:
+    <<: *app
+    environment:
+      <<: *app-env
+      INSTANCE_ID: rateguard-2
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [rateguard-1, rateguard-2, prometheus]
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/dashboard:/usr/share/nginx/html/dashboard:ro
+    mem_limit: 64m
+    logging: *logging
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    depends_on: [rateguard-1, rateguard-2]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    mem_limit: 256m
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [nginx]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 96m
+    logging: *logging
+
+volumes:
+  pgdata:
+  promdata:
+  caddy_data:
+  caddy_config:

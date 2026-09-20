@@ -1,0 +1,52 @@
+# The public "web" service on Railway: serves the dashboard and forwards API calls
+# to the private services. Caddy is used instead of nginx because it re-resolves
+# Railway's private DNS on every connection, so it keeps working when replicas
+# are redeployed and get new addresses.
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	encode zstd gzip
+
+	# The app's raw Prometheus endpoint is for the private scraper only.
+	handle /metrics {
+		respond 404
+	}
+
+	redir / /dashboard/ 302
+	redir /dashboard /dashboard/ 302
+
+	# The dashboard (static files baked into this image).
+	handle /dashboard/* {
+		root * /srv
+		header Cache-Control "no-store"
+		file_server
+	}
+
+	# Read-only window onto Prometheus' query API, so the dashboard can read metrics
+	# from the same origin. Only /api/v1/ is exposed, GET only.
+	handle /prom/api/v1/* {
+		@notget not method GET HEAD
+		respond @notget 405
+		uri strip_prefix /prom
+		reverse_proxy prometheus.railway.internal:9090
+	}
+
+	# The rate-limiter API. "rateguard.railway.internal" resolves to every replica of
+	# the rateguard service; Caddy looks it up again every few seconds and spreads
+	# requests across all of them.
+	handle {
+		reverse_proxy {
+			dynamic a {
+				name rateguard.railway.internal
+				port 8080
+				refresh 5s
+			}
+			lb_policy round_robin
+			lb_try_duration 3s
+			lb_try_interval 250ms
+		}
+	}
+}

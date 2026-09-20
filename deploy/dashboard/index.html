@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RateGuard: live view</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M12 20h40l-5 34q-1 4-5 4H22q-4 0-5-4z' fill='%235B9DFF'/%3E%3Cpath d='M16 20c0-14 32-14 32 0' fill='none' stroke='%23A78BFA' stroke-width='4'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #070D1B; --panel: rgba(18, 28, 54, .74); --panel-solid: #101A33; --line: rgba(150, 178, 235, .15);
+    --ink: #E9EFFB; --muted: #95A6C6; --faint: #62759A;
+    --teal: #2DD4BF; --coral: #FB7185; --cobalt: #5B9DFF; --violet: #A78BFA; --amber: #FBBF24; --sky: #38BDF8; --slate: #8AA0C8;
+    --ok-bg: rgba(45, 212, 191, .14); --ok-fg: #5EEAD4; --no-bg: rgba(251, 113, 133, .16); --no-fg: #FDA4AF; --err-bg: rgba(251, 191, 36, .16); --err-fg: #FCD34D;
+    --glow1: rgba(91, 157, 255, .20); --glow2: rgba(167, 139, 250, .16); --shadow: 0 12px 34px rgba(0, 0, 0, .38);
+    --input: rgba(255, 255, 255, .05);
+    --serif: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #EDF1F8; --panel: rgba(255, 255, 255, .88); --panel-solid: #FFFFFF; --line: rgba(30, 55, 100, .14);
+    --ink: #14202E; --muted: #4F6178; --faint: #7F90A8;
+    --teal: #0E9488; --coral: #D6455D; --cobalt: #2F6FDB; --violet: #7A5AA6; --amber: #B7791F; --sky: #0B7FB8; --slate: #5E7396;
+    --ok-bg: #D9F0EE; --ok-fg: #0A4F4C; --no-bg: #F8DEDC; --no-fg: #8A2823; --err-bg: #FAEBCB; --err-fg: #6E4509;
+    --glow1: rgba(47, 111, 219, .13); --glow2: rgba(122, 90, 166, .10); --shadow: 0 10px 26px rgba(30, 55, 100, .11);
+    --input: #FFFFFF;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--ink); font: 15px/1.5 var(--sans);
+    background: radial-gradient(1100px 520px at 6% -8%, var(--glow1), transparent 62%),
+                radial-gradient(900px 480px at 98% 2%, var(--glow2), transparent 60%), var(--bg);
+  }
+  h1 { font: 600 26px/1.1 var(--serif); margin: 0; letter-spacing: -.01em; }
+  h2 { font: 600 20px/1.2 var(--serif); margin: 0 0 14px; }
+  h3 { font: 600 15px/1.3 var(--sans); margin: 0; }
+  p { margin: 0; }
+  code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--input); padding: 1px 5px; border-radius: 4px; }
+  .muted { color: var(--muted); } .small { font-size: 13px; }
+  :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; }
+
+  /* ---------- header ---------- */
+  .top { display: flex; align-items: center; gap: 14px 22px; flex-wrap: wrap; padding: 18px 32px 8px; }
+  .brand { display: flex; align-items: center; gap: 13px; }
+  .brand svg { width: 38px; height: 38px; filter: drop-shadow(0 4px 12px rgba(91, 157, 255, .45)); }
+  .brand p { font-size: 13px; color: var(--muted); }
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .conn { font-size: 13px; color: var(--muted); border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 13px 6px 11px; }
+  .conn::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 8px; }
+  .conn.ok::before { background: var(--teal); animation: ping 2.2s infinite; }
+  .conn.bad::before { background: var(--coral); }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--teal) 70%, transparent); } 70%, 100% { box-shadow: 0 0 0 9px transparent; } }
+
+  button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 8px 15px; color: var(--ink);
+           border: 1px solid var(--line); background: var(--input); transition: transform .12s, background .15s, box-shadow .15s, border-color .15s; }
+  button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cobalt) 60%, var(--line)); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary, .cta { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--cobalt), var(--violet)); box-shadow: 0 6px 18px color-mix(in srgb, var(--cobalt) 40%, transparent); }
+  .cta { padding: 9px 18px; }
+  .cta.idle { animation: nudge 2.8s ease-in-out infinite; }
+  .cta.running { background: linear-gradient(135deg, var(--coral), var(--amber)); box-shadow: 0 6px 18px color-mix(in srgb, var(--coral) 40%, transparent); animation: none; }
+  @keyframes nudge { 0%, 100% { box-shadow: 0 6px 18px color-mix(in srgb, var(--cobalt) 40%, transparent); } 50% { box-shadow: 0 6px 26px color-mix(in srgb, var(--violet) 75%, transparent), 0 0 0 4px color-mix(in srgb, var(--violet) 22%, transparent); } }
+  .icon-btn { width: 38px; padding: 8px 0; text-align: center; }
+
+  /* ---------- hero: live request flow ---------- */
+  .hero { padding: 4px 32px 0; }
+  .hero-scroll { border-radius: 16px; border: 1px solid var(--line); background: var(--panel); }
+  #flow { display: block; width: 100%; height: auto; }
+  .link { stroke: var(--line); stroke-width: 2; fill: none; }
+  .link.flow { stroke: color-mix(in srgb, var(--cobalt) 45%, transparent); stroke-dasharray: 3 9; }
+  .link.soft { stroke-dasharray: 2 7; stroke-width: 1.5; stroke: color-mix(in srgb, var(--slate) 45%, transparent); }
+  .node rect.body { fill: var(--panel-solid); stroke: color-mix(in srgb, var(--c) 55%, var(--line)); stroke-width: 1.6; }
+  .node .dot { fill: var(--c); }
+  .node .t { fill: var(--ink); font: 600 15px var(--sans); }
+  .node .s { fill: var(--muted); font: 12px var(--sans); }
+  .node .n { fill: var(--c); font: 700 13px var(--sans); font-variant-numeric: tabular-nums; }
+  .lane { fill: var(--faint); font: 11px var(--sans); }
+  .stage { position: relative; min-width: 880px; }
+  #fx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  .caption { margin-top: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); position: relative; overflow: hidden; }
+  .chip { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-fg); white-space: nowrap; }
+  .chip.demo { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+  .caption b { font: 600 17px var(--serif); }
+  .caption span.txt { color: var(--muted); flex: 1 1 380px; }
+  #cap-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: linear-gradient(90deg, var(--cobalt), var(--violet), var(--coral)); transition: width .3s linear; }
+  .board { display: none; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 12px 16px; }
+  .board.on { display: block; animation: rise .4s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  .board table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .board th { text-align: left; font-weight: 600; color: var(--muted); padding: 0 12px 6px 0; }
+  .board td { padding: 6px 12px 6px 0; white-space: nowrap; }
+  .board td.num { font-variant-numeric: tabular-nums; }
+  .bar { display: flex; width: 100%; min-width: 140px; height: 9px; border-radius: 6px; overflow: hidden; background: var(--input); }
+  .bar i { display: block; height: 100%; transition: width .35s ease; }
+  .bar .a { background: var(--teal); } .bar .r { background: var(--coral); }
+
+  /* ---------- test drive ---------- */
+  .drive { margin: 16px 32px 0; padding: 16px 20px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .drive-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+  .drive-head h2 { margin: 0; }
+  .drive-head p { flex: 1 1 260px; }
+  .small-btn { width: auto; padding: 5px 12px; font-size: 13px; }
+  .tasks { list-style: none; margin: 12px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .task { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--input); transition: border-color .3s, background .3s, transform .3s; }
+  .task .box { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--faint); display: grid; place-items: center; font-size: 13px; font-weight: 800; color: transparent; transition: all .35s cubic-bezier(.3, 1.6, .5, 1); }
+  .task b { display: block; font-size: 14px; line-height: 1.3; }
+  .task span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .task.done { border-color: color-mix(in srgb, var(--teal) 55%, var(--line)); background: var(--ok-bg); transform: translateY(-1px); }
+  .task.done .box { background: var(--teal); border-color: var(--teal); color: #04221F; transform: scale(1.12); }
+  .task.done span { text-decoration: line-through; opacity: .7; }
+  .prog { height: 5px; border-radius: 4px; background: var(--input); overflow: hidden; }
+  .prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cobalt), var(--teal)); transition: width .5s cubic-bezier(.3, .7, .3, 1); }
+  .drive-done { margin-top: 10px; min-height: 0; font-weight: 600; color: var(--ok-fg); }
+  .drive.complete { border-color: color-mix(in srgb, var(--teal) 60%, var(--line)); animation: glowpulse 2.4s ease-in-out infinite; }
+  @keyframes glowpulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 24%, transparent), var(--shadow); } }
+
+  /* ---------- KPIs ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 16px 32px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
+  .kpi { padding: 14px 18px 10px; border-left: 1px solid var(--line); min-width: 0; }
+  .kpi:first-child { border-left: 0; }
+  .k-label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  .k-label i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+  .k-val { font: 600 34px/1.15 var(--serif); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .spark { display: block; width: 100%; height: 28px; margin-top: 4px; }
+
+  /* ---------- panels ---------- */
+  .grid { display: grid; grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr); gap: 18px; padding: 18px 32px 8px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); min-width: 0; }
+  .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+  /* bucket */
+  .bucket-row { display: grid; grid-template-columns: 172px 1fr; gap: 18px; align-items: center; margin-bottom: 16px; }
+  .bucket-wrap { width: 172px; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--cobalt) 26%, transparent), transparent 80%); }
+  #bucket { width: 172px; height: auto; display: block; overflow: visible; }
+  #bucket .shell { fill: none; stroke: var(--ink); stroke-width: 3.2; stroke-linejoin: round; stroke-linecap: round; transition: stroke .2s; }
+  #bucket.deny .shell { stroke: var(--coral); }
+  #bucket .tick { stroke: color-mix(in srgb, var(--ink) 16%, transparent); stroke-width: 1.5; }
+  #bucket .w1 { fill: var(--cobalt); opacity: .92; } #bucket .w2 { fill: var(--sky); opacity: .45; }
+  #water { transition: transform .3s cubic-bezier(.3, .7, .3, 1); }
+  .wave { animation: wave 2.8s linear infinite; } .wave.back { animation-duration: 4.4s; animation-direction: reverse; }
+  @keyframes wave { to { transform: translateX(100px); } }
+  #bucket.shake { animation: shake .36s; }
+  @keyframes shake { 20% { transform: translateX(-5px) rotate(-1.5deg); } 50% { transform: translateX(5px) rotate(1.5deg); } 80% { transform: translateX(-3px); } }
+  .coin { fill: var(--amber); stroke: var(--amber); stroke-opacity: .3; stroke-width: 6; paint-order: stroke; }
+  .tokens { font: 600 48px/1 var(--serif); font-variant-numeric: tabular-nums; }
+  .tokens-of { margin-top: 5px; }
+  .counts { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .counts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .fields { display: flex; flex-wrap: wrap; gap: 12px 14px; margin-bottom: 12px; }
+  .fields > div { flex: 1 1 140px; min-width: 0; } .fields .wide { flex-basis: 100%; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, select { width: 100%; font: inherit; color: var(--ink); background: var(--input); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+  select { width: auto; }
+  .inline { display: flex; gap: 8px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .actions .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+  #stream.on { background: linear-gradient(135deg, var(--coral), var(--amber)); color: #fff; border-color: transparent; }
+  #msg { margin-top: 12px; min-height: 1.5em; font-size: 13px; }
+  #msg.bad { color: var(--no-fg); }
+
+  /* checks */
+  .head-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .head-row h2 { margin: 0; }
+  .check { padding: 14px 0; border-top: 1px solid var(--line); }
+  .check:first-of-type { border-top: 0; padding-top: 0; }
+  .check-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .check-head button { flex: none; }
+  .check p { margin-top: 3px; }
+  .verdict { display: inline-flex; align-items: center; gap: 7px; margin-top: 9px; font-weight: 700; padding: 2px 11px; border-radius: 999px; font-size: 13px; }
+  .verdict.pass { background: var(--ok-bg); color: var(--ok-fg); } .verdict.fail { background: var(--no-bg); color: var(--no-fg); }
+  .verdict.wait { background: var(--input); color: var(--muted); font-weight: 500; }
+  .verdict.wait::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); border-top-color: transparent; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .lines { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+  .lines li { padding-left: 22px; position: relative; margin-top: 3px; animation: rise .35s ease-out backwards; }
+  .lines li::before { position: absolute; left: 0; font-weight: 700; }
+  .lines li.ok::before { content: "\2713"; color: var(--teal); } .lines li.no::before { content: "\2717"; color: var(--coral); } .lines li.note::before { content: "\2022"; color: var(--muted); }
+
+  /* charts */
+  #livemsg { margin: 0 0 14px; padding: 9px 12px; border-left: 3px solid var(--amber); background: var(--err-bg); color: var(--err-fg); font-size: 13px; display: none; border-radius: 0 8px 8px 0; }
+  .chart + .chart { margin-top: 20px; }
+  .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; align-items: baseline; }
+  .legend { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .chartbox { position: relative; margin-top: 4px; }
+  .chartbox svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: 0 24px; pointer-events: none; }
+  .empty span { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px; color: var(--muted); font-size: 13px; text-align: center; }
+  .grid-l { stroke: var(--line); stroke-width: 1; }
+  .ylab, .xlab { font: 11px var(--sans); fill: var(--faint); }
+  .line { fill: none; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+  .glow { fill: none; stroke-width: 8; stroke-linejoin: round; stroke-linecap: round; opacity: .11; }
+  .head { fill: currentColor; }
+  .head-halo { fill: currentColor; opacity: .18; }
+  .hover-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  .tip { position: absolute; z-index: 5; display: none; pointer-events: none; white-space: nowrap; font-size: 12px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px; box-shadow: var(--shadow); }
+  .tip b { display: block; margin-bottom: 2px; color: var(--muted); font-weight: 600; }
+  .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+
+  /* log */
+  .tablewrap { overflow: auto; max-height: 340px; }
+  table.log { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .log th { text-align: left; font-weight: 600; color: var(--muted); padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel-solid); }
+  .log td { padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .log td.num { font-variant-numeric: tabular-nums; }
+  .log tr.fresh td { animation: fresh 1.3s ease-out; }
+  @keyframes fresh { from { background: color-mix(in srgb, var(--cobalt) 28%, transparent); } }
+  .badge { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok-fg); } .badge.no { background: var(--no-bg); color: var(--no-fg); } .badge.err { background: var(--err-bg); color: var(--err-fg); }
+  .emptylog { padding: 18px 0; color: var(--muted); }
+  #totals { margin-bottom: 4px; }
+
+  details.how { margin: 8px 32px 40px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 14px 22px; }
+  details.how summary { cursor: pointer; font: 600 17px var(--serif); }
+  details.how ol { margin: 12px 0 2px; padding-left: 22px; color: var(--muted); max-width: 90ch; }
+  details.how li { margin: 6px 0; } details.how li b { color: var(--ink); }
+
+  @media (max-width: 920px) { .hero-scroll { overflow-x: auto; border-radius: 0; } }
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: 1fr; }
+    .tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi { border-top: 1px solid var(--line); } .kpi:nth-child(odd) { border-left: 0; }
+    .kpi:nth-child(-n+2) { border-top: 0; }
+  }
+  @media (max-width: 640px) {
+    .top, .hero, .grid { padding-left: 16px; padding-right: 16px; } .kpis, details.how, .drive { margin-left: 16px; margin-right: 16px; }
+    .tasks { grid-template-columns: 1fr; }
+    .ylab, .xlab { font-size: 18px; } .top-actions { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B9DFF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><path d="M12 22h40l-5 32q-1 4-5 4H22q-4 0-5-4z" fill="url(#lg)"/><path d="M17 22c0-15 30-15 30 0" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="38" r="5" fill="#FBBF24"/></svg>
+    <div><h1>RateGuard</h1><p>Distributed rate limiter. Go, Redis, PostgreSQL.</p></div>
+  </div>
+  <div class="top-actions">
+    <div id="conn" class="conn" role="status">Checking the connection…</div>
+    <button id="demo" class="cta idle" type="button">▶ Run demo</button>
+    <button id="theme" class="icon-btn" type="button" aria-label="Switch between dark and light theme" title="Switch theme">☀</button>
+  </div>
+</header>
+
+<section class="hero" aria-label="Live request flow">
+  <div class="hero-scroll"><div class="stage" id="stage"><svg id="flow" viewBox="0 0 1200 330" role="img" aria-label="Diagram: clients send requests through nginx to two RateGuard servers, which check token buckets in Redis and policies in PostgreSQL"></svg><canvas id="fx" aria-hidden="true"></canvas></div></div>
+  <div class="caption" role="status" aria-live="polite">
+    <span class="chip" id="cap-chip">Live</span>
+    <b id="cap-title">Every dot is a request</b>
+    <span class="txt" id="cap-text">Teal dots were allowed and coral dots were rejected. Press <b style="font:inherit;color:var(--ink)">Run demo</b>, send requests below, or start <code>make loadtest</code> and watch it move.</span>
+    <div id="cap-bar"></div>
+  </div>
+  <div class="board" id="board" aria-label="Demo scoreboard">
+    <table><thead><tr><th>Client</th><th>Limit</th><th>Sent</th><th>Allowed</th><th>Rejected</th><th>Outcome</th></tr></thead><tbody id="board-body"></tbody></table>
+  </div>
+</section>
+
+<section class="drive" id="drive" aria-labelledby="drive-h">
+  <div class="drive-head">
+    <h2 id="drive-h">Test drive</h2>
+    <span class="chip" id="drive-count">0 of 5</span>
+    <p class="small muted">Try these yourself, in any order. Each one ticks itself off the moment you do it.</p>
+    <button id="drive-reset" type="button" class="icon-btn small-btn" title="Start over for the next person">Start over</button>
+  </div>
+  <ol class="tasks" id="tasks"></ol>
+  <div class="prog" aria-hidden="true"><i id="drive-bar"></i></div>
+  <p class="drive-done" id="drive-done" role="status"></p>
+</section>
+
+<section class="kpis" aria-label="Key numbers">
+  <div class="kpi" style="--c:var(--teal)"><div class="k-label"><i></i>Allowed per second</div><div class="k-val" id="k-allowed">–</div><svg class="spark" id="sp-allowed" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+  <div class="kpi" style="--c:var(--coral)"><div class="k-label"><i></i>Rejected per second</div><div class="k-val" id="k-denied">–</div><svg class="spark" id="sp-denied" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+  <div class="kpi" style="--c:var(--amber)"><div class="k-label"><i></i>Of requests rejected</div><div class="k-val" id="st-rej">–</div><svg class="spark" id="sp-rej" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+  <div class="kpi" style="--c:var(--cobalt)"><div class="k-label"><i></i>p95 decision time</div><div class="k-val" id="st-p95">–</div><svg class="spark" id="sp-p95" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+  <div class="kpi" style="--c:var(--violet)"><div class="k-label"><i></i>Servers up</div><div class="k-val" id="st-up">–</div><svg class="spark" id="sp-up" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+</section>
+
+<main class="grid">
+  <div class="col">
+    <section class="panel" aria-labelledby="try-h">
+      <h2 id="try-h">Try it</h2>
+      <div class="bucket-row">
+        <div class="bucket-wrap"><svg id="bucket" viewBox="0 0 200 250" role="img" aria-label="Token bucket, no reading yet">
+          <defs><clipPath id="inside"><path d="M30 44 H170 L152 214 Q150 222 142 222 H58 Q50 222 48 214 Z"/></clipPath></defs>
+          <g clip-path="url(#inside)">
+            <g id="water" data-frac="0" style="transform:translateY(230px)">
+              <path class="wave back w2" d="M-100 0 q25 -9 50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 V400 H-100 Z"/>
+              <path class="wave w1" d="M-100 0 q25 -7 50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 t50 0 V400 H-100 Z"/>
+            </g>
+            <line class="tick" x1="30" x2="170" y1="90" y2="90"/><line class="tick" x1="30" x2="170" y1="133" y2="133"/><line class="tick" x1="30" x2="170" y1="176" y2="176"/>
+          </g>
+          <path class="shell" d="M30 44 H170 L152 214 Q150 222 142 222 H58 Q50 222 48 214 Z"/>
+          <path class="shell" d="M38 44 C38 -8 162 -8 162 44"/>
+          <g id="coins"></g>
+        </svg></div>
+        <div>
+          <div class="tokens" id="tokens">–</div>
+          <div class="tokens-of muted small" id="tokens-of">Send a request to read this bucket.</div>
+          <div class="counts" id="counts"></div>
+        </div>
+      </div>
+      <div class="fields">
+        <div class="wide"><label for="client">Client</label>
+          <div class="inline"><input id="client" autocomplete="off" spellcheck="false"><button id="newclient" type="button" title="Pick a new client name with a full bucket">New client</button></div></div>
+        <div><label for="cap">Bucket size (tokens)</label><input id="cap" type="number" min="1" step="1" value="10"></div>
+        <div><label for="rate">Refill (tokens per second)</label><input id="rate" type="number" min="0.1" step="0.1" value="2"></div>
+        <div class="wide"><label for="token">Admin token (needed to save a policy)</label><input id="token" autocomplete="off" spellcheck="false" placeholder="paste your ADMIN_TOKEN"></div>
+      </div>
+      <button id="apply" type="button">Save policy</button>
+      <p class="small muted" style="margin-top:8px">A new client always starts with a full bucket. Saving a new policy for a client that already has traffic doesn't refill it, and the other server can take up to 5 seconds to notice the change.</p>
+      <div class="actions">
+        <button id="send1" type="button" class="primary">Send 1</button>
+        <button id="send10" type="button" class="primary">Send 10</button>
+        <button id="send50" type="button" class="primary">Send 50 at once</button>
+        <span class="sep"></span>
+        <select id="streamrate" aria-label="Stream speed"><option value="1">1 per second</option><option value="5" selected>5 per second</option><option value="20">20 per second</option></select>
+        <button id="stream" type="button">Start stream</button>
+      </div>
+      <div id="msg" role="status"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="chk-h">
+      <div class="head-row"><h2 id="chk-h">Guided checks</h2><button id="runall" type="button">Run all</button></div>
+      <p class="small muted" style="margin-bottom:14px">Anyone can run these. Each check makes its own clients, sends real requests through the servers, and says whether the limit behaved. No maths needed.</p>
+      <div id="checks"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel" aria-labelledby="live-h">
+      <h2 id="live-h">What's happening</h2>
+      <p id="livemsg" role="alert"></p>
+      <p class="small muted" id="totals"></p>
+      <p class="small muted" style="margin-bottom:6px">Redis errors per second: <b id="st-err" style="color:var(--ink)">0.0</b>. Charts show the last 5 minutes and lag up to 5 seconds, because Prometheus collects every 5.</p>
+      <div class="chart">
+        <div class="chart-head"><h3>Requests per second</h3><div class="legend"><span><i class="sw" style="background:var(--teal)"></i>allowed</span><span><i class="sw" style="background:var(--coral)"></i>rejected</span></div></div>
+        <div class="chartbox"><svg id="c-rps" role="img" aria-label="Requests per second, allowed and rejected"></svg><div class="empty" id="e-rps"><span>No traffic in the last 5 minutes. Press Run demo, or start <code>make loadtest</code>.</span></div><div class="tip"></div></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>Load on each server</h3><div class="legend" id="lg-inst"></div></div>
+        <div class="chartbox"><svg id="c-inst" role="img" aria-label="Decisions per second on each server"></svg><div class="empty" id="e-inst"><span>Nothing yet. When both lines rise together, the servers are splitting the work.</span></div><div class="tip"></div></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>p95 decision time</h3><div class="legend"><span><i class="sw" style="background:var(--cobalt)"></i>95% of decisions finish faster than this</span></div></div>
+        <div class="chartbox"><svg id="c-lat" role="img" aria-label="95th percentile decision latency"></svg><div class="empty" id="e-lat"><span>No decisions to time yet.</span></div><div class="tip"></div></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="log-h">
+      <h2 id="log-h">Recent requests from Try it</h2>
+      <div class="tablewrap">
+        <table class="log"><thead><tr><th>Time</th><th>Client</th><th>Result</th><th>Tokens left</th><th>Retry in</th><th>Server</th><th>Took</th></tr></thead><tbody id="log"></tbody></table>
+        <div class="emptylog" id="nolog">Nothing sent yet.</div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<details class="how">
+  <summary>How it works, in 30 seconds</summary>
+  <ol>
+    <li><b>nginx</b> spreads requests across two identical RateGuard servers.</li>
+    <li>Each server looks up the client's <b>policy</b> (bucket size and refill rate). Policies live in PostgreSQL and are cached for 5 seconds, so the database is off the hot path.</li>
+    <li>The server runs <b>one Lua script in Redis</b>. Redis runs scripts one at a time, so two servers can never spend the same token. The script refills the bucket for the time that passed, takes a token if there is one, and answers allowed or rejected.</li>
+    <li>Every decision is counted in <b>Prometheus</b>, which feeds the charts on this page.</li>
+  </ol>
+</details>
+
+<noscript><p style="padding:24px">This page needs JavaScript.</p></noscript>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const rand = () => Math.random().toString(36).slice(2, 6);
+const pad = (n, w = 2) => String(n).padStart(w, '0');
+const fmtTime = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const short = s => (s || '').replace(/:\d+$/, '');
+function el(name, attrs, text) {
+  const n = document.createElementNS(SVGNS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+const BUCKET = { top: 44, bottom: 222 };
+const state = {
+  client: '', pristine: false, applied: { cap: 10, rate: 2 }, bucket: null,
+  counts: { allowed: 0, denied: 0, error: 0 }, byServer: {}, log: [], pageTimes: [],
+  streamTimer: null, streamStop: null, live: null, rates: {},
+};
+
+/* =====================================================================
+   API
+   ===================================================================== */
+async function sendCheck(clientId, cost = 1) {
+  const t0 = performance.now();
+  try {
+    const r = await fetch('/v1/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, cost }) });
+    let body = {};
+    try { body = await r.json(); } catch (_) { /* non-JSON error page */ }
+    const known = r.status === 200 || r.status === 429;
+    return {
+      client: clientId, at: new Date(), ms: performance.now() - t0, status: r.status,
+      allowed: r.status === 200 && body.allowed !== false,
+      limit: Number(body.limit), remaining: Number(body.remaining), retryMs: Number(body.retry_after_ms || 0),
+      degraded: !!body.degraded, instance: r.headers.get('X-RateGuard-Instance') || '?',
+      error: known ? null : (body.error || `HTTP ${r.status}`),
+    };
+  } catch (e) {
+    return { client: clientId, at: new Date(), ms: performance.now() - t0, status: 0, allowed: false, limit: NaN, remaining: NaN, retryMs: 0, degraded: false, instance: '?', error: `Network error: ${e.message}` };
+  }
+}
+async function putPolicy(id, cap, rate) {
+  const headers = { 'Content-Type': 'application/json' };
+  const tok = $('token').value.trim();
+  if (!tok) throw new Error('Paste the admin token in the field above to save policies. It is the ADMIN_TOKEN from your .env file.');
+  headers.Authorization = 'Bearer ' + tok;
+  const r = await fetch('/v1/policies/' + encodeURIComponent(id), { method: 'PUT', headers, body: JSON.stringify({ capacity: cap, refill_per_sec: rate }) });
+  if (!r.ok) {
+    let m = ''; try { m = (await r.json()).error; } catch (_) {}
+    if (r.status === 401 || r.status === 403) throw new Error('The admin token was rejected. Check the token field.');
+    throw new Error(m || `Could not save the policy (HTTP ${r.status}).`);
+  }
+}
+const sendTracked = id => sendCheck(id).then(r => { flow(r); return r; });
+
+/* =====================================================================
+   Live request flow (hero)
+   ===================================================================== */
+const NODES = {
+  clients: { x: 120, y: 165, w: 160, h: 92, title: 'Clients', sub: 'this page and load tests', c: '--slate' },
+  nginx:   { x: 372, y: 165, w: 140, h: 82, title: 'nginx', sub: 'round-robin', c: '--sky' },
+  s1:      { x: 660, y: 92,  w: 176, h: 84, title: 'rateguard-1', sub: 'Go service', c: '--cobalt' },
+  s2:      { x: 660, y: 238, w: 176, h: 84, title: 'rateguard-2', sub: 'Go service', c: '--violet' },
+  redis:   { x: 1000, y: 108, w: 200, h: 88, title: 'Redis', sub: 'token buckets, atomic Lua', c: '--amber' },
+  pg:      { x: 1000, y: 250, w: 200, h: 80, title: 'PostgreSQL', sub: 'policies, cached 5 s', c: '--teal' },
+};
+const P = Object.fromEntries(Object.entries(NODES).map(([k, n]) => [k, { x: n.x, y: n.y }]));
+// Server names are arbitrary (rateguard-1 locally, random hostnames or IPs on Railway), so the two
+// diagram slots are assigned in order of first sight. Names ending in -1 or -2 keep that slot.
+// Header names and Prometheus names are tracked separately because they can differ.
+const instMaps = { hdr: {}, prom: {} };
+function instKey(name, ns) {
+  const n = short(name), map = instMaps[ns || 'hdr'];
+  if (map[n]) return map[n];
+  const used = Object.values(map), m = /[-_]([12])$/.exec(n);
+  let slot = m ? 's' + m[1] : null;
+  if (!slot || used.includes(slot)) slot = ['s1', 's2'].find(x => !used.includes(x)) || ('s' + (1 + (n.charCodeAt(n.length - 1) % 2)));
+  map[n] = slot;
+  if ((ns || 'hdr') === 'hdr' && !/^rateguard-[12]$/.test(n)) {
+    const t = document.querySelector(`#n-${slot} .t`);
+    if (t) t.textContent = n.length > 18 ? n.slice(0, 17) + '\u2026' : n;
+  }
+  return slot;
+}
+
+function buildFlow() {
+  const svg = $('flow'); svg.replaceChildren();
+  const links = [['clients', 'nginx'], ['nginx', 's1'], ['nginx', 's2'], ['s1', 'redis'], ['s2', 'redis'], ['s1', 'pg', 'soft'], ['s2', 'pg', 'soft']];
+  const lg = el('g', {});
+  for (const [a, b, soft] of links) lg.append(el('line', { x1: P[a].x, y1: P[a].y, x2: P[b].x, y2: P[b].y, class: 'link flow' + (soft ? ' soft' : '') }));
+  svg.append(lg);
+  svg.append(el('text', { x: 812, y: 168, class: 'lane', 'text-anchor': 'middle' }, 'policy lookup on cache miss'));
+  for (const [k, n] of Object.entries(NODES)) {
+    const g = el('g', { class: 'node', id: 'n-' + k, style: `--c:var(${n.c})` });
+    g.append(el('rect', { x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 16, class: 'body' }));
+    g.append(el('circle', { cx: n.x - n.w / 2 + 16, cy: n.y - n.h / 2 + 16, r: 4.5, class: 'dot' }));
+    g.append(el('text', { x: n.x, y: n.y - 6, 'text-anchor': 'middle', class: 't' }, n.title));
+    g.append(el('text', { x: n.x, y: n.y + 12, 'text-anchor': 'middle', class: 's' }, n.sub));
+    g.append(el('text', { x: n.x, y: n.y + 31, 'text-anchor': 'middle', class: 'n', id: 'stat-' + k }, ''));
+    svg.append(g);
+  }
+}
+
+/* The moving parts (request dots and node flashes) are drawn on a canvas over the static SVG.
+   SVG repaints its whole tree whenever anything in it moves; a canvas only redraws its own pixels,
+   which keeps 60 flying dots smooth even on modest laptops. */
+const FX = { cv: null, ctx: null, s: 1, col: { node: {} }, glows: [] };
+function fxColors() {
+  FX.col = { pre: cssVar('--ink'), allowed: cssVar('--teal'), denied: cssVar('--coral'), error: cssVar('--amber'), node: {} };
+  for (const k in NODES) FX.col.node[k] = cssVar(NODES[k].c);
+}
+function fxSize() {
+  const r = $('stage').getBoundingClientRect(); if (!FX.cv || !r.width) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  FX.cv.width = Math.round(r.width * dpr); FX.cv.height = Math.round(r.height * dpr); FX.s = (r.width / 1200) * dpr;
+}
+function initFx() {
+  FX.cv = $('fx'); FX.ctx = FX.cv.getContext ? FX.cv.getContext('2d') : null;   // null in test environments without canvas
+  fxColors(); fxSize();
+  if (window.ResizeObserver) new ResizeObserver(fxSize).observe($('stage')); else window.addEventListener('resize', fxSize);
+}
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function hit(key, verdict) {
+  const now = performance.now(), last = FX.glows.find(g => g.key === key);
+  if (last && now - last.t0 < 130) return;
+  FX.glows = FX.glows.filter(g => g.key !== key);
+  FX.glows.push({ key, t0: now, dur: 320, verdict });
+  kick();
+}
+
+const particles = []; let rafId = 0;
+function kick() { if (!rafId) rafId = requestAnimationFrame(loop); }
+function spawn(slot, verdict, delay = 0) {
+  if (REDUCED || particles.length > 70) return;
+  const s = slot;
+  const fwd = [P.clients, P.nginx, P[s], P.redis].map(p => ({ x: p.x, y: p.y - 2 }));
+  const back = [P.redis, P[s], P.nginx, P.clients].map(p => ({ x: p.x, y: p.y + 14 }));
+  const pts = [...fwd, ...back], cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  particles.push({ pts, cum, L: cum[cum.length - 1], t0: performance.now() + delay, dur: (cum[cum.length - 1] / (880 + Math.random() * 160)) * 1000, stage: 0, verdict, s });
+  kick();
+}
+function loop(now) {
+  rafId = 0;
+  const ctx = FX.ctx, S = FX.s;
+  if (ctx) { ctx.clearRect(0, 0, FX.cv.width, FX.cv.height); ctx.lineJoin = 'round'; }
+  for (let i = FX.glows.length - 1; i >= 0; i--) {
+    const g = FX.glows[i], k = (now - g.t0) / g.dur;
+    if (k >= 1) { FX.glows.splice(i, 1); continue; }
+    if (!ctx) continue;
+    const n = NODES[g.key], c = g.verdict ? FX.col[g.verdict] : FX.col.node[g.key];
+    ctx.strokeStyle = c; roundRect(ctx, (n.x - n.w / 2) * S, (n.y - n.h / 2) * S, n.w * S, n.h * S, 16 * S);
+    ctx.globalAlpha = (1 - k) * 0.22; ctx.lineWidth = 13 * S; ctx.stroke();
+    ctx.globalAlpha = (1 - k) * 0.95; ctx.lineWidth = 3 * S; ctx.stroke();
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i], k = (now - p.t0) / p.dur;
+    if (k < 0) continue;
+    if (k >= 1) { hit('clients', p.verdict); particles.splice(i, 1); continue; }
+    const d = k * p.L;
+    let j = 1; while (j < p.cum.length - 1 && p.cum[j] < d) j++;
+    const a = p.pts[j - 1], b = p.pts[j], u = Math.max(0, Math.min(1, (d - p.cum[j - 1]) / ((p.cum[j] - p.cum[j - 1]) || 1)));
+    const x = a.x + (b.x - a.x) * u, y = a.y + (b.y - a.y) * u;
+    if (p.stage < 1 && d >= p.cum[1]) { p.stage = 1; hit('nginx'); }
+    if (p.stage < 2 && d >= p.cum[2]) { p.stage = 2; hit(p.s); }
+    if (p.stage < 3 && d >= p.cum[3]) { p.stage = 3; hit('redis'); }
+    if (ctx) {
+      ctx.fillStyle = p.stage >= 3 ? FX.col[p.verdict] : FX.col.pre;
+      ctx.globalAlpha = 0.26; ctx.beginPath(); ctx.arc(x * S, y * S, 9.5 * S, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(x * S, y * S, 4.6 * S, 0, 6.2832); ctx.fill();
+    }
+  }
+  if (ctx) ctx.globalAlpha = 1;
+  if (particles.length || FX.glows.length) rafId = requestAnimationFrame(loop);
+}
+function flow(res) {
+  if (res.error) state.counts.error++; else if (res.allowed) state.counts.allowed++; else state.counts.denied++;
+  state.byServer[res.instance] = (state.byServer[res.instance] || 0) + 1;
+  state.pageTimes.push(Date.now()); if (state.pageTimes.length > 3000) state.pageTimes.splice(0, 1500);
+  scheduleCounts();
+  spawn(instKey(res.instance, 'hdr'), res.error ? 'error' : res.allowed ? 'allowed' : 'denied');
+}
+let countsQueued = false;
+function scheduleCounts() { if (countsQueued) return; countsQueued = true; setTimeout(() => { countsQueued = false; renderCounts(); }, 120); }
+// Traffic from other sources (make loadtest, curl): drawn from Prometheus rates, minus what this page sent itself.
+setInterval(() => {
+  if (document.hidden) return;
+  const cutoff = Date.now() - 15000; let n = 0; for (let i = state.pageTimes.length - 1; i >= 0 && state.pageTimes[i] > cutoff; i--) n++;
+  const pageRate = n / 15;
+  let total = 0; for (const k in state.rates) total += state.rates[k].allowed + state.rates[k].denied;
+  if (total < 0.05) return;
+  const share = Math.max(0, total - pageRate) / total;
+  for (const k in state.rates) for (const v of ['allowed', 'denied']) {
+    const exp = Math.min(state.rates[k][v] * share * 0.25, 3);
+    let c = Math.floor(exp) + (Math.random() < exp % 1 ? 1 : 0);
+    while (c-- > 0) spawn(k, v, Math.random() * 220);
+  }
+}, 250);
+
+/* =====================================================================
+   Try it
+   ===================================================================== */
+function setMsg(text, bad) { const m = $('msg'); m.textContent = text; m.className = bad ? 'bad' : 'muted'; }
+
+function record(res, quiet) {
+  flow(res);
+  if (quiet) return;
+  state.log.unshift(res); if (state.log.length > 60) state.log.pop();
+  if (res.client === state.client) driveObserve(res);
+  if (!res.error && res.client === state.client && Number.isFinite(res.remaining)) {
+    state.pristine = false;
+    state.bucket = { limit: res.limit, remaining: res.remaining, at: performance.now(), rate: state.applied.rate };
+    dropCoin(res.allowed);
+  }
+  renderLog();
+}
+async function sendMain(n) {
+  if (!state.client) return;
+  await Promise.all(Array.from({ length: n }, async () => record(await sendCheck(state.client))));
+}
+async function applyPolicy(fresh) {
+  const cap = parseInt($('cap').value, 10), rate = parseFloat($('rate').value), id = $('client').value.trim();
+  if (!id) return setMsg('Enter a client name first.', true);
+  if (!(cap >= 1) || !(rate > 0)) return setMsg('Bucket size must be at least 1 and refill must be above 0.', true);
+  try {
+    await putPolicy(id, cap, rate);
+    const untouched = id === state.client && state.pristine;   // never used yet, so it is still a full bucket
+    state.client = id; state.applied = { cap, rate };
+    state.bucket = (fresh || untouched) ? { limit: cap, remaining: cap, at: performance.now(), rate } : null;
+    if (fresh) state.pristine = true;
+    setMsg(`Saved for ${id}: bucket of ${cap}, refilling ${rate} per second.`, false);
+  } catch (e) { state.client = id; setMsg(e.message, true); }
+}
+async function newClient() { $('client').value = 'tester-' + rand(); await applyPolicy(true); }
+
+function toggleStream() {
+  if (state.streamTimer) { stopStream(); return; }
+  const rps = Number($('streamrate').value);
+  state.streamTimer = setInterval(() => sendMain(1), 1000 / rps);
+  state.streamStop = setTimeout(stopStream, 120000);
+  $('stream').textContent = 'Stop stream'; $('stream').classList.add('on');
+}
+function stopStream() {
+  clearInterval(state.streamTimer); clearTimeout(state.streamStop);
+  state.streamTimer = null; $('stream').textContent = 'Start stream'; $('stream').classList.remove('on');
+}
+
+function dropCoin(allowed) {
+  const svg = $('bucket');
+  if (!allowed) { svg.classList.remove('shake'); void svg.getBoundingClientRect(); svg.classList.add('shake', 'deny'); clearTimeout(svg._t); svg._t = setTimeout(() => svg.classList.remove('shake', 'deny'), 420); return; }
+  if (REDUCED || !svg.animate) return;
+  const g = $('coins'); if (g.childNodes.length > 10) return;
+  const c = el('circle', { class: 'coin', r: 6, cx: 100 + (Math.random() * 60 - 30), cy: 14 });
+  g.append(c);
+  const water = parseFloat($('water').style.transform.replace(/[^\d.-]/g, '')) || 150;
+  c.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: `translateY(${Math.max(20, water - 14)}px)`, opacity: .15 }], { duration: 520, easing: 'cubic-bezier(.3,0,.7,1)' }).onfinish = () => c.remove();
+}
+function paintBucket() {
+  const b = state.bucket, svg = $('bucket');
+  let frac = 0;
+  if (b && b.limit > 0) {
+    const est = Math.min(b.limit, b.remaining + ((performance.now() - b.at) / 1000) * b.rate);
+    frac = Math.max(0, Math.min(1, est / b.limit));
+    $('tokens').textContent = est.toFixed(1);
+    $('tokens-of').textContent = `tokens left, out of ${b.limit}. Between requests this refills at ${b.rate} per second, so it is an estimate until your next request.`;
+    svg.setAttribute('aria-label', `Token bucket: about ${est.toFixed(1)} of ${b.limit} tokens left`);
+  } else {
+    $('tokens').textContent = '–';
+    $('tokens-of').textContent = 'Send a request to read this bucket.';
+    svg.setAttribute('aria-label', 'Token bucket, no reading yet');
+  }
+  const y = frac > 0 ? BUCKET.bottom - (BUCKET.bottom - BUCKET.top) * frac : BUCKET.bottom + 14;
+  $('water').style.transform = `translateY(${y.toFixed(1)}px)`;
+  $('water').setAttribute('data-frac', frac.toFixed(3));
+}
+function renderCounts() {
+  const c = state.counts;
+  const servers = Object.entries(state.byServer).map(([k, v]) => `${short(k)}: <b>${v}</b>`).join(' &nbsp;·&nbsp; ');
+  $('counts').innerHTML = `From this page: <b>${c.allowed}</b> allowed, <b>${c.denied}</b> rejected` + (c.error ? `, <b>${c.error}</b> failed` : '') + (servers ? `<br>Answered by ${servers}` : '');
+  const t = $('stat-clients'); if (t) t.textContent = `${c.allowed} allowed · ${c.denied} rejected`;
+}
+let logQueued = false;
+function renderLog() {
+  if (logQueued) return; logQueued = true;
+  setTimeout(() => {
+    logQueued = false;
+    const body = $('log'); body.replaceChildren();
+    $('nolog').style.display = state.log.length ? 'none' : '';
+    for (const r of state.log) {
+      const tr = document.createElement('tr');
+      if (!r.shown) { tr.className = 'fresh'; r.shown = true; }
+      const cell = (text, cls) => { const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.append(td); };
+      cell(fmtTime(r.at), 'num'); cell(r.client);
+      const td = document.createElement('td'), b = document.createElement('span');
+      b.className = 'badge ' + (r.error ? 'err' : r.allowed ? 'ok' : 'no');
+      b.textContent = r.error ? 'Failed' : r.allowed ? (r.degraded ? 'Allowed (degraded)' : 'Allowed') : 'Rejected';
+      td.append(b); tr.append(td);
+      cell(r.error ? r.error : Number.isFinite(r.remaining) ? r.remaining : '–', 'num');
+      cell(!r.error && !r.allowed ? `${(r.retryMs / 1000).toFixed(1)} s` : '', 'num');
+      cell(short(r.instance)); cell(`${r.ms.toFixed(0)} ms`, 'num');
+      body.append(tr);
+    }
+  }, 120);
+}
+
+/* =====================================================================
+   Guided checks
+   ===================================================================== */
+async function fresh(prefix, cap, rate) { const id = `${prefix}-${rand()}`; await putPolicy(id, cap, rate); return id; }
+async function volley(id, n) {
+  const t0 = performance.now();
+  const rs = await Promise.all(Array.from({ length: n }, () => sendTracked(id)));
+  return { rs, secs: (performance.now() - t0) / 1000, allowed: rs.filter(r => r.status === 200 && r.allowed).length, failed: rs.filter(r => r.status !== 200 && r.status !== 429).length };
+}
+const tally = rs => { const t = {}; rs.forEach(r => { t[short(r.instance)] = (t[short(r.instance)] || 0) + 1; }); return t; };
+const CHECKS = [
+  { id: 'burst', title: 'The bucket size is a hard cap',
+    blurb: 'A bucket of 10 refilling 1 per second gets 30 requests at once, spread over both servers. Only about 10 should get through.',
+    async run() {
+      const cap = 10, rate = 1, n = 30;
+      const id = await fresh('check-burst', cap, rate);
+      const v = await volley(id, n), max = cap + rate * v.secs + 1, lines = [];
+      lines.push({ s: v.failed === 0 ? 'ok' : 'no', t: v.failed === 0 ? `All ${n} requests got an answer.` : `${v.failed} of ${n} requests failed instead of getting a yes or no.` });
+      const inRange = v.allowed >= cap && v.allowed <= max;
+      lines.push({ s: inRange ? 'ok' : 'no', t: `${v.allowed} of ${n} were allowed. The most a correct limiter may allow is ${Math.floor(max)} (10 in the bucket plus what refilled in ${v.secs.toFixed(2)} s).` });
+      const t = tally(v.rs), names = Object.keys(t).filter(k => k !== '?'), split = names.map(k => `${k}: ${t[k]}`).join(', ');
+      if (names.length < 2) lines.push({ s: 'note', t: `Only ${names[0] || 'one server'} answered, so this run can't prove two servers share a limit. Open this page through port 8080 (nginx) to test that.` });
+      else if (inRange) lines.push({ s: 'ok', t: `Both servers took part (${split}) and together stayed within one limit.` });
+      else lines.push({ s: 'no', t: `Both servers took part (${split}), but together they let ${v.allowed} through. They are not sharing one limit.` });
+      return lines;
+    } },
+  { id: 'refill', title: 'Tokens come back over time',
+    blurb: 'Empty a bucket of 5 that refills 2 per second, wait 3 seconds, and try again. It should be full again, so about 5 requests pass.',
+    async run(say) {
+      const cap = 5, rate = 2, id = await fresh('check-refill', cap, rate), a = await volley(id, 8);
+      const lines = [{ s: a.allowed >= cap && a.allowed <= cap + 1 ? 'ok' : 'no', t: `First round emptied the bucket: ${a.allowed} of 8 passed (expected about ${cap}).` }];
+      for (let s = 3; s > 0; s--) { say(`Waiting ${s} s for the bucket to refill…`); await sleep(1000); }
+      say('Trying again…');
+      const b = await volley(id, 8);
+      lines.push({ s: b.allowed >= 4 && b.allowed <= 6 ? 'ok' : 'no', t: `After 3 s, ${b.allowed} of 8 passed (expected about ${cap}: 6 tokens refilled, but the bucket only holds ${cap}).` });
+      return lines;
+    } },
+  { id: 'isolation', title: 'One client can\'t use up another\'s limit',
+    blurb: 'Two clients each get a bucket of 3. The first hammers it until it is rejected. The second should be completely unaffected.',
+    async run() {
+      const cap = 3, rate = 0.5, A = await fresh('check-a', cap, rate), B = await fresh('check-b', cap, rate);
+      const a = await volley(A, 8), aNext = await sendTracked(A), b = await sendTracked(B), aAgain = await sendTracked(A);
+      return [
+        { s: a.allowed >= cap && a.allowed <= cap + 1 ? 'ok' : 'no', t: `Client A got ${a.allowed} of 8 through (expected about ${cap}).` },
+        { s: !aNext.allowed && aNext.status === 429 ? 'ok' : 'no', t: aNext.status === 429 ? 'Client A is now being rejected.' : `Client A should be rejected but got status ${aNext.status}.` },
+        { s: b.allowed && b.remaining === cap - 1 ? 'ok' : 'no', t: b.allowed ? `Client B was allowed with ${b.remaining} tokens left (a full bucket minus this request).` : `Client B was rejected (status ${b.status}), so it was affected by A.` },
+        { s: !aAgain.allowed ? 'ok' : 'no', t: 'Serving B did not give A any tokens back.' },
+      ];
+    } },
+];
+function buildChecks() {
+  const host = $('checks');
+  for (const c of CHECKS) {
+    const box = document.createElement('div'); box.className = 'check';
+    box.innerHTML = '<div class="check-head"><div><h3></h3><p class="small muted"></p></div><button type="button">Run</button></div><div class="result"></div>';
+    box.querySelector('h3').textContent = c.title; box.querySelector('p').textContent = c.blurb;
+    c.btn = box.querySelector('button'); c.out = box.querySelector('.result');
+    c.btn.onclick = () => runCheck(c); host.append(box);
+  }
+}
+async function runCheck(c) {
+  if (c.running) return;
+  c.running = true; c.btn.disabled = true;
+  const say = t => { c.out.innerHTML = ''; const v = document.createElement('span'); v.className = 'verdict wait'; v.textContent = t; c.out.append(v); };
+  say('Running…');
+  let lines, pass = false;
+  try { lines = await c.run(say); pass = lines.every(l => l.s !== 'no'); } catch (e) { lines = [{ s: 'no', t: e.message }]; }
+  c.out.innerHTML = '';
+  const v = document.createElement('span'); v.className = 'verdict ' + (pass ? 'pass' : 'fail'); v.textContent = pass ? '✓ Passed' : '✗ Failed';
+  const ul = document.createElement('ul'); ul.className = 'lines';
+  lines.forEach((l, i) => { const li = document.createElement('li'); li.className = l.s; li.textContent = l.t; li.style.animationDelay = (i * 90) + 'ms'; ul.append(li); });
+  c.out.append(v, ul);
+  c.result = pass ? 'pass' : 'fail'; c.running = false; c.btn.disabled = false; c.btn.textContent = 'Run again';
+  if (CHECKS.every(x => x.result === 'pass')) tick('checks');
+}
+async function runAll() { $('runall').disabled = true; for (const c of CHECKS) await runCheck(c); $('runall').disabled = false; }
+
+/* =====================================================================
+   Test drive: five things a real person can try, each ticks itself off
+   ===================================================================== */
+const TASKS = [
+  { id: 'allow',   label: 'Get a request through',        hint: 'Press Send 1.' },
+  { id: 'limit',   label: 'Hit the limit (a 429)',         hint: 'Press Send 10 twice, quickly.' },
+  { id: 'refill',  label: 'Wait, then get through again',  hint: 'After a 429, wait a couple of seconds and press Send 1.' },
+  { id: 'servers', label: 'See both servers answer you',   hint: 'Press Send 10 and read "Answered by".' },
+  { id: 'checks',  label: 'Pass all three guided checks',  hint: 'Press Run all under Guided checks.' },
+];
+const drive = { done: new Set(), lastDeny: 0, servers: new Set() };
+function buildDrive() {
+  const ol = $('tasks'); ol.replaceChildren();
+  for (const t of TASKS) {
+    const li = document.createElement('li'); li.className = 'task'; li.id = 'task-' + t.id;
+    li.innerHTML = '<div class="box" aria-hidden="true">✓</div><div><b></b><span></span></div>';
+    li.querySelector('b').textContent = t.label; li.querySelector('span').textContent = t.hint; ol.append(li);
+  }
+  paintDrive();
+}
+function paintDrive() {
+  const n = drive.done.size;
+  $('drive-count').textContent = `${n} of ${TASKS.length}`; $('drive-bar').style.width = (n / TASKS.length) * 100 + '%';
+  for (const t of TASKS) $('task-' + t.id).classList.toggle('done', drive.done.has(t.id));
+  const all = n === TASKS.length;
+  $('drive').classList.toggle('complete', all);
+  $('drive-done').textContent = all ? 'All five done. You just tested RateGuard the way a real user would: it held its limit, recovered, and behaved the same on both servers.' : '';
+}
+function tick(id) { if (!drive.done.has(id)) { drive.done.add(id); paintDrive(); } }
+function driveObserve(res) {
+  if (res.error) return;
+  if (res.allowed) { tick('allow'); if (drive.lastDeny && Date.now() - drive.lastDeny > 1500) tick('refill'); }
+  else { tick('limit'); drive.lastDeny = Date.now(); }
+  if (res.instance && res.instance !== '?') { drive.servers.add(res.instance); if (drive.servers.size >= 2) tick('servers'); }
+}
+function resetDrive() {
+  drive.done.clear(); drive.lastDeny = 0; drive.servers.clear();
+  state.counts = { allowed: 0, denied: 0, error: 0 }; state.byServer = {}; state.log = [];
+  renderCounts(); renderLog(); paintDrive(); newClient();
+  for (const c of CHECKS) { c.result = null; c.out.innerHTML = ''; c.btn.textContent = 'Run'; }
+}
+
+/* =====================================================================
+   Narrated demo
+   ===================================================================== */
+const DEMO = { running: false, stop: false, scale: 1, ids: {}, tally: {} };
+const TIERS = {
+  pro:    { label: 'demo-pro',    cap: 60, rate: 30 },
+  free:   { label: 'demo-free',   cap: 10, rate: 5 },
+  abuser: { label: 'demo-abuser', cap: 20, rate: 5 },
+};
+const PHASES = [
+  { title: 'Normal traffic', secs: 12, streams: { pro: 15, free: 3 },
+    text: 'Two well-behaved clients stay under their limits, so nearly everything is allowed. Requests alternate between both servers, yet each client has just one bucket, held in Redis.' },
+  { title: 'A burst arrives', secs: 14, streams: { pro: 15, free: 3 }, start: () => { for (let i = 0; i < 40; i++) sendDemo('free'); },
+    text: 'demo-free fires 40 requests at once against a bucket of 10. About 10 get through and the rest receive 429. Then tokens refill at 5 per second and it recovers.' },
+  { title: 'A noisy neighbor', secs: 18, streams: { pro: 15, free: 3, abuser: 50 },
+    text: 'demo-abuser sends 50 requests per second against a limit of 5, so it is rejected almost every time. demo-pro and demo-free keep getting through: one client cannot starve the others.' },
+  { title: 'Back to normal', secs: 8, streams: { pro: 15, free: 3 },
+    text: 'The abuser stops. Look at the charts: the rejected line drops, and latency stayed flat the whole time.' },
+];
+function setCaption(chip, title, text, demo) {
+  $('cap-chip').textContent = chip; $('cap-chip').className = 'chip' + (demo ? ' demo' : '');
+  $('cap-title').textContent = title; $('cap-text').textContent = text;
+}
+function renderBoard() {
+  const body = $('board-body'); body.replaceChildren();
+  for (const k of Object.keys(TIERS)) {
+    const t = DEMO.tally[k] || { sent: 0, ok: 0, no: 0 }, tr = document.createElement('tr');
+    const cell = (x, cls) => { const td = document.createElement('td'); td.textContent = x; if (cls) td.className = cls; tr.append(td); return td; };
+    cell(TIERS[k].label); cell(`${TIERS[k].cap} tokens, ${TIERS[k].rate}/s`); cell(t.sent, 'num'); cell(t.ok, 'num'); cell(t.no, 'num');
+    const td = document.createElement('td'), bar = document.createElement('div'); bar.className = 'bar';
+    const tot = t.ok + t.no || 1;
+    bar.innerHTML = `<i class="a" style="width:${(t.ok / tot) * 100}%"></i><i class="r" style="width:${(t.no / tot) * 100}%"></i>`;
+    td.append(bar); tr.append(td); body.append(tr);
+  }
+}
+function sendDemo(k) {
+  const t = DEMO.tally[k] || (DEMO.tally[k] = { sent: 0, ok: 0, no: 0 });
+  t.sent++;
+  sendCheck(DEMO.ids[k]).then(r => { record(r, true); if (r.allowed) t.ok++; else t.no++; });
+}
+async function runDemo() {
+  if (DEMO.running) { DEMO.stop = true; return; }
+  DEMO.running = true; DEMO.stop = false; DEMO.tally = {};
+  const btn = $('demo'); btn.textContent = '■ Stop demo'; btn.className = 'cta running';
+  setCaption('Demo', 'Setting up', 'Creating three clients with different limits…', true);
+  try {
+    for (const k of Object.keys(TIERS)) { DEMO.ids[k] = `${TIERS[k].label}-${rand()}`; await putPolicy(DEMO.ids[k], TIERS[k].cap, TIERS[k].rate); }
+  } catch (e) {
+    setCaption('Demo', 'The demo could not start', e.message, true);
+    DEMO.running = false; btn.textContent = '▶ Run demo'; btn.className = 'cta idle'; return;
+  }
+  $('board').classList.add('on'); renderBoard();
+  const boardTimer = setInterval(renderBoard, 250);
+  const total = PHASES.reduce((s, p) => s + p.secs * DEMO.scale, 0); let elapsed = 0;
+  outer: for (let i = 0; i < PHASES.length; i++) {
+    const ph = PHASES[i], dur = ph.secs * DEMO.scale * 1000, debt = {};
+    setCaption(`Demo · step ${i + 1} of ${PHASES.length}`, ph.title, ph.text, true);
+    if (ph.start) ph.start();
+    const t0 = performance.now();
+    while (performance.now() - t0 < dur) {
+      if (DEMO.stop) break outer;
+      for (const [k, rps] of Object.entries(ph.streams)) {
+        debt[k] = (debt[k] || 0) + rps * 0.1;
+        while (debt[k] >= 1) { debt[k]--; sendDemo(k); }
+      }
+      $('cap-bar').style.width = (((elapsed + (performance.now() - t0) / 1000) / total) * 100).toFixed(1) + '%';
+      await sleep(100);
+    }
+    elapsed += ph.secs * DEMO.scale;
+  }
+  await sleep(500); clearInterval(boardTimer); renderBoard();
+  const A = DEMO.tally.abuser || { ok: 0, no: 0 }, Pr = DEMO.tally.pro || { ok: 0, no: 0 };
+  const pct = (a, b) => (a + b ? Math.round((a / (a + b)) * 100) : 0);
+  if (DEMO.stop) setCaption('Live', 'Demo stopped', 'Press Run demo to start it again.', false);
+  else setCaption('Demo complete', `${pct(A.no, A.ok)}% of the abuser's requests were rejected`, `demo-pro was allowed ${pct(Pr.ok, Pr.no)}% of the time in the same window. Every request shared one bucket per client across both servers.`, true);
+  $('cap-bar').style.width = '0%';
+  DEMO.running = false; DEMO.stop = false; btn.textContent = '▶ Run demo'; btn.className = 'cta idle';
+}
+
+/* =====================================================================
+   Live charts (Prometheus via /prom/)
+   ===================================================================== */
+async function prom(path, params) {
+  const r = await fetch('/prom/api/v1/' + path + '?' + new URLSearchParams(params));
+  if (!r.ok) throw new Error(`Prometheus answered ${r.status}`);
+  const j = await r.json();
+  if (j.status !== 'success') throw new Error(j.error || 'Prometheus query failed');
+  return j.data.result;
+}
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
+const lastFinite = pts => { for (let i = pts.length - 1; i >= 0; i--) if (Number.isFinite(pts[i][1])) return pts[i][1]; return NaN; };
+const toPoints = s => s.values.map(([t, v]) => [t, num(v)]);
+const merge = lists => { const m = new Map(); lists.forEach(pts => pts.forEach(([t, v]) => m.set(t, (m.get(t) || 0) + (Number.isFinite(v) ? v : 0)))); return [...m.entries()].sort((a, b) => a[0] - b[0]); };
+function niceMax(v) { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 4 ? 4 : f <= 8 ? 8 : 10) * p; }
+function runsOf(points) { const runs = []; let cur = []; for (const p of points) { if (Number.isFinite(p[1])) cur.push(p); else { if (cur.length) runs.push(cur); cur = []; } } if (cur.length) runs.push(cur); return runs; }
+const fmtRate = v => (v < 10 ? v.toFixed(1) : Math.round(v).toString());
+const fmtMs = v => { const ms = v * 1000; return (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms'; };
+const fmtInt = v => Math.round(v).toLocaleString();
+
+function drawChart(svg, emptyEl, series, tMin, tMax, fmt, floor) {
+  const W = 600, H = 180, m = { l: 50, r: 14, t: 12, b: 22 };
+  svg.replaceChildren(); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const vals = series.flatMap(s => s.points.map(p => p[1])).filter(Number.isFinite);
+  const yMax = niceMax(Math.max(floor, ...vals));
+  const x = t => m.l + ((t - tMin) / (tMax - tMin)) * (W - m.l - m.r);
+  const y = v => H - m.b - (v / yMax) * (H - m.t - m.b);
+  const defs = el('defs', {}); svg.append(defs);
+  for (let i = 0; i <= 4; i++) {
+    const v = (yMax * i) / 4;
+    svg.append(el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: 'grid-l' }));
+    svg.append(el('text', { x: m.l - 7, y: y(v) + 3.5, class: 'ylab', 'text-anchor': 'end' }, fmt(v)));
+  }
+  for (let i = 0; i <= 5; i++) {
+    const t = tMin + ((tMax - tMin) * i) / 5;
+    svg.append(el('text', { x: x(t), y: H - 4, class: 'xlab', 'text-anchor': i === 0 ? 'start' : i === 5 ? 'end' : 'middle' }, i === 5 ? 'now' : `\u2212${5 - i}m`));
+  }
+  series.forEach((s, si) => {
+    const col = cssVar(s.color), gid = `${svg.id}-g${si}`;
+    const g = el('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
+    g.append(el('stop', { offset: '0%', 'stop-color': col, 'stop-opacity': 0.34 })); g.append(el('stop', { offset: '100%', 'stop-color': col, 'stop-opacity': 0 }));
+    defs.append(g);
+    for (const run of runsOf(s.points)) {
+      const d = run.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+      if (!s.dash && run.length > 1) svg.append(el('path', { d: `${d} L${x(run[run.length - 1][0]).toFixed(1)} ${y(0).toFixed(1)} L${x(run[0][0]).toFixed(1)} ${y(0).toFixed(1)} Z`, class: 'area', fill: `url(#${gid})` }));
+      if (!s.dash) svg.append(el('path', { d, class: 'glow', stroke: col }));
+      svg.append(el('path', { d, class: 'line', fill: 'none', stroke: col, style: `color:${col}`, ...(s.dash ? { 'stroke-dasharray': s.dash } : {}) }));
+    }
+    const runs = runsOf(s.points), last = runs.length ? runs[runs.length - 1][runs[runs.length - 1].length - 1] : null;
+    if (last && tMax - last[0] < 25 && !s.dash) {
+      svg.append(el('circle', { cx: x(last[0]), cy: y(last[1]), r: 3.6, class: 'head', style: `color:${col}` }));
+      svg.append(el('circle', { cx: x(last[0]), cy: y(last[1]), r: 7, class: 'head-halo', style: `color:${col}` }));
+    }
+  });
+  svg.__m = { series, tMin, tMax, W, m, fmt, x, y, H };
+  emptyEl.style.display = vals.some(v => v > 0) ? 'none' : 'flex';
+}
+function wireHover(svg) {
+  if (svg.dataset.hover) return; svg.dataset.hover = '1';
+  const box = svg.parentElement, tip = box.querySelector('.tip');
+  const clear = () => { tip.style.display = 'none'; svg.querySelectorAll('.hover').forEach(n => n.remove()); };
+  svg.addEventListener('mouseleave', clear);
+  svg.addEventListener('mousemove', e => {
+    const M = svg.__m; if (!M) return;
+    const r = svg.getBoundingClientRect(), vx = ((e.clientX - r.left) / r.width) * M.W;
+    const t = M.tMin + ((vx - M.m.l) / (M.W - M.m.l - M.m.r)) * (M.tMax - M.tMin);
+    if (t < M.tMin || t > M.tMax) return clear();
+    svg.querySelectorAll('.hover').forEach(n => n.remove());
+    const g = el('g', { class: 'hover' }); let rows = '', tx = t;
+    for (const s of M.series) {
+      let best = null; for (const p of s.points) if (Number.isFinite(p[1]) && (!best || Math.abs(p[0] - t) < Math.abs(best[0] - t))) best = p;
+      if (!best) continue; tx = best[0];
+      g.append(el('circle', { cx: M.x(best[0]), cy: M.y(best[1]), r: 4.5, fill: cssVar(s.color), stroke: cssVar('--panel-solid'), 'stroke-width': 2 }));
+      rows += `<div><i style="background:${cssVar(s.color)}"></i>${s.name}: <b style="display:inline;color:var(--ink)">${M.fmt(best[1])}</b></div>`;
+    }
+    g.prepend(el('line', { x1: M.x(tx), x2: M.x(tx), y1: M.m.t, y2: M.H - M.m.b, class: 'hover-line' }));
+    svg.append(g);
+    const ago = Math.max(0, Math.round(M.tMax - tx));
+    tip.innerHTML = `<b>${ago < 3 ? 'now' : ago + ' s ago'}</b>${rows}`; tip.style.display = 'block';
+    const br = box.getBoundingClientRect(); let left = e.clientX - br.left + 14;
+    if (left > br.width - 190) left = e.clientX - br.left - 180;
+    tip.style.left = left + 'px'; tip.style.top = Math.max(0, e.clientY - br.top - 30) + 'px';
+  });
+}
+function spark(id, points, colorVar) {
+  const svg = $(id); svg.replaceChildren();
+  const pts = points.filter(p => Number.isFinite(p[1])).slice(-48);
+  if (pts.length < 2) return;
+  const col = cssVar(colorVar), max = Math.max(...pts.map(p => p[1]), 1e-9);
+  const X = i => (i / (pts.length - 1)) * 100, Y = v => 26 - (v / max) * 22;
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ');
+  svg.append(el('path', { d: `${d} L100 28 L0 28 Z`, fill: col, opacity: .16 }));
+  svg.append(el('path', { d, fill: 'none', stroke: col, 'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }));
+}
+const tw = new WeakMap();
+function tween(node, to, fmt) {
+  if (!Number.isFinite(to)) { node.textContent = '–'; node.dataset.v = ''; return; }
+  const from = parseFloat(node.dataset.v);
+  if (REDUCED || !Number.isFinite(from)) { node.textContent = fmt(to); node.dataset.v = to; return; }
+  const t0 = performance.now(); cancelAnimationFrame(tw.get(node));
+  const step = now => {
+    const k = Math.min(1, (now - t0) / 650), e = 1 - Math.pow(1 - k, 3), v = k >= 1 ? to : from + (to - from) * e;
+    node.textContent = fmt(v); node.dataset.v = v; if (k < 1) tw.set(node, requestAnimationFrame(step));
+  };
+  tw.set(node, requestAnimationFrame(step));
+}
+function liveError(msg) { const b = $('livemsg'); b.style.display = msg ? 'block' : 'none'; b.textContent = msg || ''; }
+
+function renderLive() {
+  const L = state.live; if (!L) return;
+  const { now, allowed, denied, inst, lat, rej } = L;
+  drawChart($('c-rps'), $('e-rps'), [{ name: 'allowed', points: allowed, color: '--teal' }, { name: 'rejected', points: denied, color: '--coral' }], now - 300, now, fmtRate, 4);
+  drawChart($('c-inst'), $('e-inst'), inst, now - 300, now, fmtRate, 4);
+  $('lg-inst').innerHTML = inst.map(s => `<span><i class="sw" style="background:var(${s.color})"></i>${s.name}${s.dash ? ' (dashed)' : ''}</span>`).join('') || '<span>no servers reporting</span>';
+  drawChart($('c-lat'), $('e-lat'), [{ name: 'p95', points: lat, color: '--cobalt' }], now - 300, now, fmtMs, 0.002);
+  ['c-rps', 'c-inst', 'c-lat'].forEach(id => wireHover($(id)));
+  spark('sp-allowed', allowed, '--teal'); spark('sp-denied', denied, '--coral'); spark('sp-rej', rej, '--amber'); spark('sp-p95', lat, '--cobalt');
+  const a = lastFinite(allowed) || 0, d = lastFinite(denied) || 0;
+  tween($('k-allowed'), a, fmtRate); tween($('k-denied'), d, fmtRate);
+  tween($('st-rej'), a + d > 0.05 ? (d / (a + d)) * 100 : NaN, v => Math.round(v) + '%');
+  const l = lastFinite(lat); tween($('st-p95'), l, fmtMs);
+  $('st-up').textContent = L.allN ? `${L.upN} of ${L.allN}` : '–';
+  $('st-err').textContent = Number.isFinite(L.redisErr) ? fmtRate(L.redisErr) : '0.0';
+  $('totals').textContent = `Since the servers started: ${fmtInt(L.totA)} allowed, ${fmtInt(L.totD)} rejected.`;
+  // numbers on the flow diagram
+  let sum = 0;
+  for (const k of ['s1', 's2']) { const r = state.rates[k]; const t = r ? r.allowed + r.denied : 0; sum += t; const n = $('stat-' + k); if (n) n.textContent = `${fmtRate(t)} req/s`; }
+  $('stat-nginx').textContent = `${fmtRate(sum)} req/s`;
+  $('stat-redis').textContent = Number.isFinite(l) ? `p95 ${fmtMs(l)}` : '';
+  $('stat-pg').textContent = 'off the hot path';
+}
+async function refreshLive() {
+  const now = Date.now() / 1000, range = { start: now - 300, end: now, step: 5 };
+  try {
+    const [byRI, p95, totals, redisErr, up, total] = await Promise.all([
+      prom('query_range', { ...range, query: 'sum by (instance, result) (rate(rateguard_decisions_total[15s]))' }),
+      prom('query_range', { ...range, query: 'histogram_quantile(0.95, sum by (le) (rate(rateguard_decision_duration_seconds_bucket[30s])))' }),
+      prom('query', { query: 'sum by (result) (rateguard_decisions_total)' }),
+      prom('query', { query: 'sum(rate(rateguard_redis_errors_total[30s]))' }),
+      prom('query', { query: 'sum(up{job="rateguard"})' }),
+      prom('query', { query: 'count(up{job="rateguard"})' }),
+    ]);
+    liveError('');
+    const isAllow = r => r === 'allowed' || r === 'error_allowed';
+    const allowed = merge(byRI.filter(s => isAllow(s.metric.result)).map(toPoints));
+    const denied = merge(byRI.filter(s => !isAllow(s.metric.result)).map(toPoints));
+    const names = [...new Set(byRI.map(s => short(s.metric.instance || 'unknown')))].sort();
+    const inst = names.map((name, i) => ({ name, color: ['--cobalt', '--violet', '--amber', '--sky'][i % 4], dash: i > 0 ? '7 5' : '',
+      points: merge(byRI.filter(s => short(s.metric.instance || 'unknown') === name).map(toPoints)) }));
+    state.rates = {};
+    for (const s of byRI) {
+      const k = instKey(s.metric.instance || '', 'prom'), v = lastFinite(toPoints(s)) || 0;
+      (state.rates[k] = state.rates[k] || { allowed: 0, denied: 0 })[isAllow(s.metric.result) ? 'allowed' : 'denied'] += v;
+    }
+    const rej = allowed.map(([t, v], i) => { const dd = (denied[i] && denied[i][0] === t) ? denied[i][1] : 0; return [t, v + dd > 0.05 ? (dd / (v + dd)) * 100 : NaN]; });
+    const tot = {}; totals.forEach(s => { tot[s.metric.result] = num(s.value[1]); });
+    state.live = {
+      now, allowed, denied, inst, rej, lat: p95.length ? toPoints(p95[0]) : [],
+      totA: (tot.allowed || 0) + (tot.error_allowed || 0), totD: (tot.denied || 0) + (tot.error_denied || 0),
+      redisErr: redisErr.length ? num(redisErr[0].value[1]) : 0,
+      upN: up.length ? num(up[0].value[1]) : 0, allN: total.length ? num(total[0].value[1]) : 0,
+    };
+    renderLive();
+  } catch (e) {
+    liveError(`The live charts can't reach Prometheus (${e.message}). Check that the prometheus container is running with "docker compose ps". The Try it panel still works.`);
+  }
+}
+async function checkHealth() {
+  const box = $('conn');
+  try {
+    const r = await fetch('/healthz'), who = short(r.headers.get('X-RateGuard-Instance') || '');
+    if (r.ok) { box.className = 'conn ok'; box.textContent = `Connected${who ? ' (answered by ' + who + ')' : ''}. Redis and Postgres are reachable.`; }
+    else { box.className = 'conn bad'; box.textContent = `The API is up but reports a problem (HTTP ${r.status}). Redis or Postgres may be down.`; }
+  } catch (e) { box.className = 'conn bad'; box.textContent = 'Can\'t reach the API. Is the stack running? Try "docker compose ps".'; }
+}
+
+/* =====================================================================
+   theme + start
+   ===================================================================== */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('rg-theme', t); } catch (_) {}
+  $('theme').textContent = t === 'dark' ? '☀' : '☾';
+  fxColors(); renderLive();
+}
+let saved = null; try { saved = localStorage.getItem('rg-theme'); } catch (_) {}
+document.documentElement.dataset.theme = saved === 'light' ? 'light' : 'dark';
+$('theme').textContent = document.documentElement.dataset.theme === 'dark' ? '☀' : '☾';
+$('theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+$('send1').onclick = () => sendMain(1);
+$('send10').onclick = () => sendMain(10);
+$('send50').onclick = () => sendMain(50);
+$('apply').onclick = () => applyPolicy(false);
+$('newclient').onclick = newClient;
+$('stream').onclick = toggleStream;
+$('runall').onclick = runAll;
+$('drive-reset').onclick = resetDrive;
+$('demo').onclick = runDemo;
+$('client').addEventListener('change', () => { state.client = $('client').value.trim(); state.bucket = null; state.pristine = false; });
+buildFlow(); initFx(); buildChecks(); buildDrive(); renderCounts(); renderLog(); paintBucket();
+setInterval(paintBucket, 100);
+// The well-known dev token is only pre-filled when the page runs on this machine.
+if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) $('token').value = 'dev-admin-token';
+newClient(); checkHealth(); refreshLive();
+setInterval(refreshLive, 3000); setInterval(checkHealth, 10000);
+
+window.__rg = { state, drive, TASKS, resetDrive, CHECKS, runCheck, sendCheck, newClient, refreshLive, runDemo, DEMO, PHASES, particles };
+})();
+</script>
+</body>
+</html>
